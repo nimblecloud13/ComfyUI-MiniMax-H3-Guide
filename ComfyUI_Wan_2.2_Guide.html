@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ComfyUI + Wan 2.2: what everything actually does</title>
+<style>
+:root{
+  --bg:#191c24; --bg-panel:#13161e; --bg-card:#1d2030; --bg-input:#0e1018; --bg-hi:#242840;
+  --border:#262b3c; --border-hi:#333a54;
+  --accent:#f59e0b; --accent-hi:#fbbf24; --accent-dim:rgba(245,158,11,.09); --accent-glow:rgba(245,158,11,.22);
+  --text:#f2f4fc; --text-dim:#c4cde4; --text-muted:#8a96b8;
+  --green:#4ade80; --red:#f87171; --blue:#60a5fa; --purple:#c084fc; --yellow:#fbbf24;
+  --t:.13s cubic-bezier(.4,0,.2,1);
+  --topbar-h:52px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+*{scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:7px}
+html{scroll-padding-top:70px}
+body{background:var(--bg);color:var(--text);font:14px/1.55 'Segoe UI',system-ui,sans-serif}
+a{color:var(--accent-hi);text-decoration:none;transition:var(--t)}
+a:hover{color:var(--accent)}
+code,.mono{font-family:'Consolas',monospace}
+code{font-size:12.5px;color:var(--text);background:var(--bg-input);border:1px solid var(--border);border-radius:4px;padding:1px 5px;white-space:nowrap}
+b,strong{color:var(--text);font-weight:700}
+
+/* topbar */
+.topbar{position:sticky;top:0;height:var(--topbar-h);background:var(--bg-panel);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:18px;padding:0 20px;z-index:20}
+.brand{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;white-space:nowrap;color:var(--text)}
+.brand .dot{width:9px;height:9px;border-radius:3px;background:var(--accent);box-shadow:0 0 10px var(--accent-glow)}
+.tabs{display:flex;gap:4px;margin-left:auto;overflow-x:auto}
+.tab-btn{height:34px;line-height:34px;padding:0 13px;border-radius:7px;font-size:12px;font-weight:600;
+  color:var(--text-muted);transition:var(--t);white-space:nowrap}
+.tab-btn:hover{color:var(--text);background:var(--bg-hi)}
+.tab-btn.active,.tab-btn.active:hover{color:#000;background:var(--accent);box-shadow:0 2px 12px var(--accent-glow)}
+
+/* page */
+.wrap{max-width:1180px;margin:0 auto;padding:30px 24px 56px}
+.hero h1{font-size:28px;line-height:1.2;font-weight:700;letter-spacing:-.2px}
+.hero .sub{font-size:16px;color:var(--text-dim);margin-top:8px;max-width:820px}
+.pills{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px;color:var(--text-muted);font-size:13px}
+.pill{font:12px 'Consolas',monospace;color:var(--text-dim);background:var(--bg-card);border:1px solid var(--border-hi);
+  border-radius:24px;padding:3px 11px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.three div{background:var(--bg-panel);border:1px solid var(--border);border-radius:7px;padding:12px 14px;color:var(--text-dim)}
+.three b{display:block;font-size:14.5px;margin-bottom:2px}
+
+.lbl{font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:5px}
+
+/* sections: color-coded cards */
+.sec{--c:var(--accent);--tint:rgba(245,158,11,.10);
+  background:linear-gradient(90deg,var(--tint) 0%,transparent 34%),var(--bg-card);
+  border:1px solid var(--border);border-left:3px solid var(--c);border-radius:7px;padding:22px 24px 26px;margin-top:22px}
+.sec.blue{--c:var(--blue);--tint:rgba(96,165,250,.10)}
+.sec.purple{--c:var(--purple);--tint:rgba(192,132,252,.10)}
+.sec.green{--c:var(--green);--tint:rgba(74,222,128,.09)}
+.sec.yellow{--c:var(--yellow);--tint:rgba(251,191,36,.09)}
+.sec.red{--c:var(--red);--tint:rgba(248,113,113,.10)}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .num{font:700 20px 'Consolas',monospace;color:var(--c)}
+.sec-head h2{font-size:21px;font-weight:700}
+.sec-head .tag{font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--c)}
+.lead{font-size:15.5px;color:var(--text-dim);margin-top:10px;max-width:900px}
+.lead b{color:var(--text)}
+h3.sub-h{font-size:15px;font-weight:700;margin:26px 0 12px;display:flex;align-items:center;gap:10px}
+h3.sub-h::after{content:"";flex:1;height:1px;background:var(--border)}
+p.note{color:var(--text-muted);font-size:13px;margin-top:12px;max-width:900px}
+
+/* pipeline */
+.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:26px;margin-top:20px}
+.stage{position:relative;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:14px 14px 13px}
+.stage h4{font-size:15px;font-weight:700;margin-bottom:5px}
+.stage p{color:var(--text-dim);font-size:13.5px}
+.stage .where{display:block;margin-top:9px;font:11.5px 'Consolas',monospace;color:var(--text-muted)}
+.stage:not(:last-child)::after{content:"";position:absolute;right:-18px;top:50%;width:8px;height:8px;
+  border-top:2px solid var(--border-hi);border-right:2px solid var(--border-hi);transform:translateY(-50%) rotate(45deg)}
+.stage.main{border-color:var(--accent);box-shadow:0 2px 12px var(--accent-glow)}
+.stage.main .lbl{color:var(--accent-hi)}
+
+.strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:22px}
+.tile svg{display:block;width:100%;height:auto;border-radius:7px;border:1px solid var(--border);background:var(--bg-input)}
+.tile span{display:block;text-align:center;font:11.5px 'Consolas',monospace;color:var(--text-muted);margin-top:6px}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;margin-top:18px;border:1px solid var(--border);border-radius:7px;background:var(--bg)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);text-align:left;
+  padding:11px 14px 9px;background:var(--bg-panel);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:13px 14px;vertical-align:top;color:var(--text-dim);border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+td.name{white-space:nowrap}
+td.name b{display:block;font-size:14.5px}
+td.name .code{font:700 15px 'Consolas',monospace;color:var(--c);display:block}
+td.name small{display:block;color:var(--text-muted);font-size:12px;margin-top:1px}
+td.start{min-width:210px}
+.set{display:inline-block;font:700 12.5px 'Consolas',monospace;color:var(--accent-hi);background:var(--accent-dim);
+  border:1px solid rgba(245,158,11,.38);border-radius:5px;padding:2px 8px;margin-bottom:5px}
+td.file{font:12.5px 'Consolas',monospace;color:var(--text);word-break:break-all}
+td.num{font:12.5px 'Consolas',monospace;color:var(--text);white-space:nowrap;text-align:right}
+
+/* term cards */
+.terms{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
+.terms.three-col{grid-template-columns:repeat(3,1fr)}
+.term{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:15px 17px 16px}
+.term h4{font-size:16px;font-weight:700;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.term h4 .role{font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--c)}
+.term .aka{font:11.5px 'Consolas',monospace;color:var(--text-muted);margin-top:2px}
+.term p{color:var(--text-dim);margin-top:4px}
+.term .lbl{margin:12px 0 0}
+.term p.fine{color:var(--text-muted);font-size:12.5px;margin-top:10px}
+.term.plain h4{font-size:14.5px}
+.term.plain p{margin-top:5px;font-size:13.5px}
+
+/* callouts */
+.callouts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.callout{background:var(--bg-panel);border:1px solid var(--border);border-radius:7px;padding:14px 16px;color:var(--text-dim);font-size:13.5px}
+.callout b.h{display:block;font-size:14.5px;margin-bottom:4px}
+
+/* filename decoder */
+.fname{display:flex;flex-wrap:wrap;gap:3px;margin-top:18px;font:700 17px 'Consolas',monospace}
+.fname span{padding:7px 10px;border-radius:5px;border:1px solid}
+.seg-a{color:var(--blue);background:rgba(96,165,250,.11);border-color:rgba(96,165,250,.4)}
+.seg-b{color:var(--purple);background:rgba(192,132,252,.11);border-color:rgba(192,132,252,.4)}
+.seg-c{color:var(--green);background:rgba(74,222,128,.10);border-color:rgba(74,222,128,.4)}
+.seg-d{color:var(--yellow);background:rgba(251,191,36,.10);border-color:rgba(251,191,36,.4)}
+.seg-e{color:var(--text-muted);background:var(--bg);border-color:var(--border-hi)}
+.decode{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:10px}
+.decode div{border-top:2px solid;padding-top:8px;font-size:13px;color:var(--text-dim)}
+.decode b{display:block;font:700 13px 'Consolas',monospace;margin-bottom:2px}
+.decode .seg-a,.decode .seg-b,.decode .seg-c,.decode .seg-d,.decode .seg-e{background:none}
+.decode .seg-a b{color:var(--blue)}.decode .seg-b b{color:var(--purple)}.decode .seg-c b{color:var(--green)}
+.decode .seg-d b{color:var(--yellow)}.decode .seg-e b{color:var(--text-muted)}
+
+/* size chart */
+.chart{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:18px 18px 16px;margin-top:18px}
+.chart-title{font-size:14.5px;font-weight:700}
+.legend{display:flex;flex-wrap:wrap;gap:18px;margin-top:8px;font-size:12.5px;color:var(--text-dim)}
+.legend i{display:inline-block;width:22px;height:10px;border-radius:2px;margin-right:7px;vertical-align:-1px}
+.sw-on{background:var(--blue)}
+.sw-over{background:repeating-linear-gradient(135deg,rgba(96,165,250,.7) 0 2px,rgba(96,165,250,.14) 2px 6px);box-shadow:inset 0 0 0 1px rgba(96,165,250,.45)}
+.sw-line{width:2px !important;height:13px !important;background:var(--accent);border-radius:0 !important;vertical-align:-3px !important}
+.grp{font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin:18px 0 0}
+.rows{margin-top:8px}
+.row{display:grid;grid-template-columns:186px 1fr 64px 212px;align-items:center;column-gap:14px;height:28px;border-radius:5px;transition:var(--t)}
+.row:hover{background:var(--bg-hi)}
+.row .n{font:12.5px 'Consolas',monospace;color:var(--text);padding-left:6px;white-space:nowrap}
+.row .v{font:12.5px 'Consolas',monospace;color:var(--text);text-align:right;white-space:nowrap}
+.row .c{font-size:12.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .c .set{margin:0 6px 0 0;font-size:11px;padding:1px 6px}
+.track{position:relative;height:28px;display:flex;align-items:center;gap:2px}
+.track::after{content:"";position:absolute;left:25%;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--accent)}
+.on{height:12px;background:var(--blue)}
+.on.end{border-radius:0 4px 4px 0}
+.over{height:12px;border-radius:0 4px 4px 0;
+  background:repeating-linear-gradient(135deg,rgba(96,165,250,.7) 0 2px,rgba(96,165,250,.14) 2px 6px);box-shadow:inset 0 0 0 1px rgba(96,165,250,.45)}
+.axis{display:grid;grid-template-columns:186px 1fr 64px 212px;column-gap:14px;margin-top:4px}
+.axis .ticks{position:relative;height:18px;border-top:1px solid var(--border)}
+.axis .ticks span{position:absolute;top:4px;transform:translateX(-50%);font:11px 'Consolas',monospace;color:var(--text-muted);white-space:nowrap}
+.axis .ticks span.me{color:var(--text);font-weight:700}
+
+/* lists */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
+.box{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:16px 18px}
+.box h4{font-size:15px;font-weight:700;margin-bottom:8px}
+ol.steps{list-style:none;counter-reset:s}
+ol.steps li{counter-increment:s;position:relative;padding:7px 0 7px 34px;color:var(--text-dim);border-bottom:1px solid var(--border)}
+ol.steps li:last-child{border-bottom:none}
+ol.steps li::before{content:counter(s);position:absolute;left:0;top:7px;width:22px;height:22px;border-radius:5px;
+  font:700 12px/22px 'Consolas',monospace;text-align:center;color:var(--c);background:var(--bg-panel);border:1px solid var(--border-hi)}
+dl.errs div{padding:8px 0;border-bottom:1px solid var(--border)}
+dl.errs div:last-child{border-bottom:none}
+dl.errs dt{font:12.5px 'Consolas',monospace;color:var(--text)}
+dl.errs dd{color:var(--text-dim);font-size:13.5px;margin-top:2px}
+
+.foot{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);color:var(--text-muted);font-size:12.5px;
+  display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between}
+.foot .src a{color:var(--text-dim)}
+.foot .src a:hover{color:var(--accent-hi)}
+
+@media (max-width:980px){
+  .flow,.decode{grid-template-columns:1fr}
+  .stage:not(:last-child)::after{right:50%;top:auto;bottom:-17px;transform:rotate(135deg)}
+  .terms,.terms.three-col,.callouts,.cols,.three{grid-template-columns:1fr}
+  .strip{grid-template-columns:repeat(3,1fr)}
+  .row,.axis{grid-template-columns:150px 1fr 60px}
+  .row .c,.axis .pad2{display:none}
+}
+/* additions on top of base.css for the newer guides */
+
+/* size chart on a 0 to 32 GB scale: amber line at 16, faint lines at 8, 12 and 24 */
+.chart.s32 .track{z-index:0}
+.chart.s32 .track::after{left:50%}
+.chart.s32 .track::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:
+    linear-gradient(var(--border-hi),var(--border-hi)) 25% 0/1px 100% no-repeat,
+    linear-gradient(var(--border-hi),var(--border-hi)) 37.5% 0/1px 100% no-repeat,
+    linear-gradient(var(--border-hi),var(--border-hi)) 75% 0/1px 100% no-repeat}
+
+/* filename decoder with 4 or 6 parts */
+.decode.c4{grid-template-columns:repeat(4,1fr)}
+.decode.c6{grid-template-columns:repeat(6,1fr)}
+.seg-f{color:var(--red);background:rgba(248,113,113,.10);border-color:rgba(248,113,113,.4)}
+.decode .seg-f{background:none}
+.decode .seg-f b{color:var(--red)}
+
+/* two-up callouts and compact reference tables */
+.callouts.two{grid-template-columns:1fr 1fr}
+table.tight td{padding:8px 14px}
+.box p{color:var(--text-dim)}
+.box p + p{margin-top:10px}
+
+@media (max-width:980px){
+  .decode.c4,.decode.c6,.callouts.two{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2a55"/><stop offset=".62" stop-color="#b4562f"/><stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.95" numOctaves="2" seed="11"/>
+      <feColorMatrix type="matrix" values="3.2 0 0 0 -1.1  3.2 0 0 0 -1.1  3.2 0 0 0 -1.1  0 0 0 0 1"/>
+    </filter>
+    <filter id="blur4" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="blur3" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="blur2" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="2"/></filter>
+    <filter id="blur1" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation=".8"/></filter>
+    <g id="scene">
+      <rect width="160" height="90" fill="url(#sky)"/>
+      <circle cx="112" cy="47" r="12" fill="#fde68a"/>
+      <path d="M0 64 L28 40 L50 58 L78 32 L112 62 L136 48 L160 64 V90 H0Z" fill="#232a48"/>
+      <path d="M0 76 L40 61 L82 73 L122 63 L160 77 V90 H0Z" fill="#0e1018"/>
+    </g>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="brand"><span class="dot"></span>ComfyUI + Wan 2.2</div>
+  <nav class="tabs">
+    <a class="tab-btn" href="#picture" title="How a video gets made, start to finish">Big picture</a>
+    <a class="tab-btn" href="#modes" title="T2V, I2V, first and last frame, the 5B model">Versions</a>
+    <a class="tab-btn" href="#parts" title="The model files a workflow loads">Parts</a>
+    <a class="tab-btn" href="#files" title="How to read a filename and which file to download">Files</a>
+    <a class="tab-btn" href="#settings" title="Resolution, length, steps, CFG and the rest">Settings</a>
+    <a class="tab-btn" href="#hardware" title="VRAM, RAM, offloading, errors">Hardware</a>
+    <a class="tab-btn" href="#first-run" title="A known-good starting recipe">First run</a>
+  </nav>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <h1>ComfyUI + Wan 2.2: what everything actually does</h1>
+    <p class="sub">Plain English. No definitions that define nothing. Every part and setting gets the same three answers.</p>
+    <div class="three">
+      <div><b>What is it?</b>In words, not more acronyms.</div>
+      <div><b>What does it do?</b>To your video, or your wait.</div>
+      <div><b>What do I set it to?</b>A real starting value.</div>
+    </div>
+    <div class="pills">Sized for <span class="pill">16 GB VRAM</span><span class="pill">32 GB RAM</span> with notes for smaller cards</div>
+  </div>
+
+  <!-- 1 -->
+  <section class="sec" id="picture">
+    <div class="sec-head"><span class="num">1</span><h2>The big picture</h2><span class="tag">Read this first</span></div>
+    <p class="lead"><b>Wan 2.2 does not film anything.</b> It starts with a block of pure static, every frame at once, and cleans it up a little at a time until it looks like your prompt. The twist is that <b>two artists share the job</b>: one roughs out the layout and the motion, then hands over to a second one who finishes the detail.</p>
+
+    <div class="flow">
+      <div class="stage"><div class="lbl">You</div><h4>Prompt</h4><p>Your words, plus a starting picture if you are doing image to video.</p></div>
+      <div class="stage"><div class="lbl">The reader</div><h4>Text encoder</h4><p>Reads the prompt and turns it into numbers the artists can follow. Runs once per prompt.</p><span class="where">Load CLIP</span></div>
+      <div class="stage main"><div class="lbl">The two artists</div><h4>High noise, then low noise</h4><p>The first takes the early steps: what is where, and how it moves. The second takes the late steps: faces, texture, sharpness. Nearly all of your wait is here.</p><span class="where">Load Diffusion Model, twice</span></div>
+      <div class="stage"><div class="lbl">The unpacker</div><h4>VAE</h4><p>The artists work on a small compressed version. The VAE turns it back into real frames.</p><span class="where">Load VAE</span></div>
+      <div class="stage"><div class="lbl">Result</div><h4>MP4</h4><p>16 frames per second. No sound.</p></div>
+    </div>
+
+<div class="strip" role="img" aria-label="Six tiles showing static turning into a clear picture as the step count rises">
+      <div class="tile"><svg viewBox="0 0 160 90"><rect width="160" height="90" filter="url(#grain)"/></svg><span>start: static</span></div>
+      <div class="tile"><svg viewBox="0 0 160 90"><use href="#scene" filter="url(#blur4)"/><rect width="160" height="90" filter="url(#grain)" opacity=".74"/></svg><span>step 4</span></div>
+      <div class="tile"><svg viewBox="0 0 160 90"><use href="#scene" filter="url(#blur3)"/><rect width="160" height="90" filter="url(#grain)" opacity=".48"/></svg><span>step 8</span></div>
+      <div class="tile"><svg viewBox="0 0 160 90"><use href="#scene" filter="url(#blur2)"/><rect width="160" height="90" filter="url(#grain)" opacity=".26"/></svg><span>step 12</span></div>
+      <div class="tile"><svg viewBox="0 0 160 90"><use href="#scene" filter="url(#blur1)"/><rect width="160" height="90" filter="url(#grain)" opacity=".1"/></svg><span>step 16</span></div>
+      <div class="tile"><svg viewBox="0 0 160 90"><use href="#scene"/></svg><span>step 20: done</span></div>
+    </div>
+    <p class="note">A step is one cleanup pass. More passes, cleaner result, longer wait. (A drawing of the idea, not real output.)</p>
+    <p class="lead" style="margin-top:16px">Everything else on this page is one of three things: <b>a part</b> of that assembly line, <b>a file</b> that one of the parts loads, or <b>a knob</b> on the artists.</p>
+  </section>
+
+  <!-- 2 -->
+  <section class="sec blue" id="modes">
+    <div class="sec-head"><span class="num">2</span><h2>Versions</h2><span class="tag">Which Wan 2.2 you actually want</span></div>
+    <p class="lead">"Wan 2.2" is a family, not one file. <b>Each job has its own model.</b> These four are the ones to know.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Version</th><th>You plug in</th><th>What it does with it</th><th>Reach for it when</th></tr></thead>
+        <tbody>
+          <tr><td class="name"><span class="code">T2V 14B</span><small>Text to video</small></td>
+            <td>A prompt. Nothing else.</td>
+            <td>Invents everything: the people, the place, the camera.</td>
+            <td>You have no picture to start from. Needs the <code>t2v</code> pair of files.</td></tr>
+          <tr><td class="name"><span class="code">I2V 14B</span><small>Image to video</small></td>
+            <td>A prompt and one picture.</td>
+            <td>Your picture becomes the literal first frame. The video plays forward from it.</td>
+            <td>You already have the exact look you want and need it to move. Needs the <code>i2v</code> pair.</td></tr>
+          <tr><td class="name"><span class="code">FLF2V</span><small>First and last frame</small></td>
+            <td>A prompt and two pictures.</td>
+            <td>Opens on picture one, lands on picture two, and invents the trip between them.</td>
+            <td>The ending has to hit an exact image. It is not a separate download: it uses the <code>i2v</code> pair with a different node.</td></tr>
+          <tr><td class="name"><span class="code">TI2V 5B</span><small>The small one</small></td>
+            <td>A prompt, with or without a picture.</td>
+            <td>One single file that does both text to video and image to video, at 1280 x 704 and 24 frames per second.</td>
+            <td>Your card is small. The official docs say it fits well on 8 GB. It is the lightweight option, not the best-looking one.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callouts">
+      <div class="callout"><b class="h">Why the 14B models are two files</b>Each 14B model is really a pair: a <code>high_noise</code> file and a <code>low_noise</code> file. The high-noise one works while the frames are still mostly static and decides layout and motion. The low-noise one takes over once things have taken shape and refines detail. You need both. Only one is working at any moment.</div>
+      <div class="callout"><b class="h">Pairs do not mix</b>The <code>t2v</code> pair and the <code>i2v</code> pair are different models. A t2v file cannot take a starting picture, and high and low are not interchangeable either. If a result is noise or mush, a swapped file is the first thing to check.</div>
+      <div class="callout"><b class="h">The rest of the family</b>Each of these is its own download with its own template: <b>S2V</b> moves a character's mouth to a voice track you supply. <b>Animate</b> makes a character follow the movement in another video. <b>Fun Control, Inpaint, Camera and VACE</b> steer a video with poses, masks or camera paths.</div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="sec purple" id="parts">
+    <div class="sec-head"><span class="num">3</span><h2>The parts</h2><span class="tag">What each file you load is for</span></div>
+    <p class="lead">A 14B workflow loads <b>four model files</b>: two artists, one reader, one unpacker.</p>
+
+    <div class="terms three-col">
+      <div class="term">
+        <h4>Diffusion models <span class="role">The two artists</span></h4>
+        <div class="aka">also called: checkpoint, UNet, DiT &nbsp;|&nbsp; field: unet_name</div>
+        <div class="lbl">What they do</div>
+        <p>Make the video. Each is about 14 billion numbers. Together that is 27 billion, but only one of them is in use on any given step.</p>
+        <div class="lbl">Why you care</div>
+        <p>They are the big files and they do the work on every step. Halfway through a run, ComfyUI puts the first one away and brings out the second, and that swap is a real pause on a mid-range PC.</p>
+      </div>
+      <div class="term">
+        <h4>Text encoder <span class="role">The reader</span></h4>
+        <div class="aka">also called: CLIP &nbsp;|&nbsp; field: clip_name</div>
+        <div class="lbl">What it does</div>
+        <p>Reads your prompt and hands the artists numbers that mean the same thing. It reads text only. It never sees your starting picture.</p>
+        <div class="lbl">Why you care</div>
+        <p>It is a language model called umT5-XXL, and the same file serves every Wan 2.2 version. It runs once per prompt, for the positive and the negative prompt. Change only the seed and ComfyUI reuses its last answer.</p>
+        <p class="fine">Set the loader's type to <code>wan</code>.</p>
+      </div>
+      <div class="term">
+        <h4>VAE <span class="role">The unpacker</span></h4>
+        <div class="aka">field: vae_name</div>
+        <div class="lbl">What it does</div>
+        <p>Turns the artists' compressed result into real frames, and squeezes your starting picture down on the way in.</p>
+        <div class="lbl">Why you care</div>
+        <p>There are two and they do not swap. The 14B models use <code>wan_2.1_vae</code>. Yes, the 2.1 one: that is not a typo. Only the 5B model uses <code>wan2.2_vae</code>. Unpacking the whole clip is also a burst of memory at the very end.</p>
+      </div>
+    </div>
+
+    <h3 class="sub-h">Add-ons and words you will keep seeing</h3>
+    <div class="terms">
+      <div class="term plain"><h4>LoRA</h4><p>A small patch file that sits on top of an artist and bends it toward something: a face, a style, a kind of motion, or speed. <b>Strength</b> is how hard it bends. 0 is off, 1.0 is what its maker intended. For the 14B models, LoRAs usually come as a <b>pair</b>, one for each artist. Load the high one on the high-noise model and the low one on the low-noise model.</p></div>
+      <div class="term plain"><h4>Lightning LoRA <span class="role">lightx2v, 4 steps</span></h4><p>A pair of LoRAs that teach the artists to finish in 4 steps where they normally take 20. It is the single biggest speed-up there is for this model. The official templates have it built in behind one switch. The price is in section 5.</p></div>
+      <div class="term plain"><h4>Checkpoint</h4><p>Just means a saved model file. People use it loosely for the diffusion model.</p></div>
+      <div class="term plain"><h4>.safetensors</h4><p>The container, like .zip or .mp4. It tells you nothing about what is inside. The name is literal: the file can only hold numbers, so it cannot hide a program the way the older .ckpt and .pt files could.</p></div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="sec green" id="files">
+    <div class="sec-head"><span class="num">4</span><h2>File names</h2><span class="tag">Which one to download</span></div>
+    <p class="lead">Read a model's filename left to right and it tells you exactly what you are getting.</p>
+
+    <div class="fname" aria-label="Example filename split into its parts">
+      <span class="seg-a">wan2.2</span><span class="seg-b">_t2v</span><span class="seg-f">_high_noise</span><span class="seg-c">_14B</span><span class="seg-d">_fp8_scaled</span><span class="seg-e">.safetensors</span>
+    </div>
+    <div class="decode c6">
+      <div class="seg-a" style="border-color:var(--blue)"><b>wan2.2</b>The family and version. Wan 2.1 files are a different model.</div>
+      <div class="seg-b" style="border-color:var(--purple)"><b>t2v</b>The job. <code>t2v</code> text, <code>i2v</code> image, <code>ti2v</code> both, <code>s2v</code> voice, <code>animate</code>, <code>fun_...</code></div>
+      <div class="seg-f" style="border-color:var(--red)"><b>high_noise</b>Which artist: the first (<code>high</code>) or the second (<code>low</code>). You need both.</div>
+      <div class="seg-c" style="border-color:var(--green)"><b>14B</b>Size, in billions of numbers. 14B is the full model, 5B the small one.</div>
+      <div class="seg-d" style="border-color:var(--yellow)"><b>fp8_scaled</b>How its numbers are stored. This sets the file size.</div>
+      <div class="seg-e" style="border-color:var(--border-hi)"><b>.safetensors</b>The container. Ignore it.</div>
+    </div>
+
+    <h3 class="sub-h">The one idea behind all the letters</h3>
+    <p class="lead" style="margin-top:0">A model is a giant list of numbers. The letters say <b>how many bits each number is stored with</b>. Fewer bits: smaller file, more of it fits on your card, slightly less exact result. Same trade as JPEG quality or MP3 bitrate.</p>
+
+    <div class="terms three-col">
+      <div class="term plain"><h4 class="mono">fp16</h4><p>16 bits per number. The original, full-quality file, and the biggest one. You will also see bf16, which is the same idea with the 16 bits laid out differently.</p></div>
+      <div class="term plain"><h4 class="mono">fp8_scaled</h4><p>8 bits per number, with a scale factor kept for each layer so less is lost in the rounding. Half the size of the 16-bit original. It is the long-standing 8-bit format and runs on nearly any setup.</p></div>
+      <div class="term plain"><h4 class="mono">GGUF (Q8, Q6, Q5, Q4 ...)</h4><p>A community packaging format borrowed from the chatbot world. The Q number is roughly the bits per number: Q8 is close to the original, Q4 is about half that size and rougher. It needs the ComfyUI-GGUF custom node pack and its own loader node, and the files go in <code>models/unet</code>.</p></div>
+    </div>
+
+    <div class="chart s32">
+      <div class="chart-title">File size against your card</div>
+      <div class="legend">
+        <span><i class="sw-on"></i>fits on a 16 GB card</span>
+        <span><i class="sw-over"></i>past 16 GB, spills into system RAM</span>
+        <span><i class="sw-line"></i>16 GB</span>
+        <span>faint lines: 8, 12 and 24 GB</span>
+      </div>
+
+      <div class="grp">Diffusion model, 14B: size of EACH of the two files (t2v shown, i2v is the same)</div>
+      <div class="rows">
+        <div class="row" title="14B fp16: 26.6 GB per file. 16 GB on the card, 10.6 GB spills over on a 16 GB card."><span class="n">fp16</span><div class="track"><div class="on" style="width:50%"></div><div class="over" style="width:33.1%"></div></div><span class="v">26.6 GB</span><span class="c">the original. For 32 GB cards.</span></div>
+        <div class="row" title="14B Q8 GGUF: 14.4 GB per file. Community file."><span class="n">Q8 (GGUF)</span><div class="track"><div class="on end" style="width:44.8%"></div></div><span class="v">14.4 GB</span><span class="c">community, near original</span></div>
+        <div class="row" title="14B fp8_scaled: 13.3 GB per file. The file ComfyUI's templates use."><span class="n">fp8_scaled</span><div class="track"><div class="on end" style="width:41.6%"></div></div><span class="v">13.3 GB</span><span class="c"><span class="set">start here</span>official default</span></div>
+        <div class="row" title="14B Q6_K GGUF: 11.2 GB per file. Community file."><span class="n">Q6_K (GGUF)</span><div class="track"><div class="on end" style="width:34.9%"></div></div><span class="v">11.2 GB</span><span class="c">community, for 12 GB cards</span></div>
+        <div class="row" title="14B Q5_K_M GGUF: 10.1 GB per file. Community file."><span class="n">Q5_K_M (GGUF)</span><div class="track"><div class="on end" style="width:31.4%"></div></div><span class="v">10.1 GB</span><span class="c">community</span></div>
+        <div class="row" title="14B Q4_K_M GGUF: 9.0 GB per file. Community file."><span class="n">Q4_K_M (GGUF)</span><div class="track"><div class="on end" style="width:28.1%"></div></div><span class="v">9.0 GB</span><span class="c">community, rougher</span></div>
+        <div class="row" title="14B Q3_K_M GGUF: 6.7 GB per file. Community file."><span class="n">Q3_K_M (GGUF)</span><div class="track"><div class="on end" style="width:20.9%"></div></div><span class="v">6.7 GB</span><span class="c">community, for 8 GB cards</span></div>
+      </div>
+
+      <div class="grp">Diffusion model, 5B: one file</div>
+      <div class="rows">
+        <div class="row" title="TI2V 5B fp16: 9.3 GB, a single file."><span class="n">ti2v_5B fp16</span><div class="track"><div class="on end" style="width:29.1%"></div></div><span class="v">9.3 GB</span><span class="c">the small model</span></div>
+      </div>
+
+      <div class="grp">Text encoder</div>
+      <div class="rows">
+        <div class="row" title="umT5-XXL fp16: 10.6 GB."><span class="n">fp16</span><div class="track"><div class="on end" style="width:33.1%"></div></div><span class="v">10.6 GB</span><span class="c">full quality</span></div>
+        <div class="row" title="umT5-XXL fp8_scaled: 6.3 GB. The file ComfyUI's templates use."><span class="n">fp8_scaled</span><div class="track"><div class="on end" style="width:19.6%"></div></div><span class="v">6.3 GB</span><span class="c"><span class="set">start here</span>official default</span></div>
+      </div>
+      <div class="axis"><span></span><div class="ticks"><span style="left:0;transform:none">0</span><span style="left:25%">8</span><span style="left:37.5%">12</span><span class="me" style="left:50%">16</span><span style="left:75%">24</span><span style="left:100%;transform:translateX(-100%)">32 GB</span></div><span></span><span class="pad2"></span></div>
+      <p class="note" style="margin-top:14px">Official sizes are from the Comfy-Org files. GGUF sizes are from one community set (QuantStack, t2v). Video needs a lot of working room on the card on top of the file itself, so a file that sits right under your line will still spill a little.</p>
+    </div>
+
+    <h3 class="sub-h">Download this set (text to video)</h3>
+    <div class="tbl-wrap" style="margin-top:0">
+      <table>
+        <thead><tr><th>Part</th><th>File</th><th style="text-align:right">Size</th><th>Goes in ComfyUI/models/</th></tr></thead>
+        <tbody>
+          <tr><td class="name"><b>Diffusion model</b><small>the first artist</small></td><td class="file">wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors</td><td class="num">13.3 GB</td><td><code>diffusion_models</code></td></tr>
+          <tr><td class="name"><b>Diffusion model</b><small>the second artist</small></td><td class="file">wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors</td><td class="num">13.3 GB</td><td><code>diffusion_models</code></td></tr>
+          <tr><td class="name"><b>Text encoder</b></td><td class="file">umt5_xxl_fp8_e4m3fn_scaled.safetensors</td><td class="num">6.3 GB</td><td><code>text_encoders</code></td></tr>
+          <tr><td class="name"><b>VAE</b></td><td class="file">wan_2.1_vae.safetensors</td><td class="num">0.2 GB</td><td><code>vae</code></td></tr>
+          <tr><td class="name"><b>Lightning LoRAs</b><small>optional, both files</small></td><td class="file">wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors<br>wan2.2_t2v_lightx2v_4steps_lora_v1.1_low_noise.safetensors</td><td class="num">1.1 GB<br>1.1 GB</td><td><code>loras</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note"><b>For image to video,</b> swap the two diffusion models for <code>wan2.2_i2v_high_noise_14B_fp8_scaled</code> and <code>wan2.2_i2v_low_noise_14B_fp8_scaled</code>, and the LoRAs for the <code>i2v_lightx2v_4steps</code> pair. The text encoder and VAE stay the same.</p>
+    <p class="note">These are the exact files ComfyUI's built-in Wan 2.2 templates ask for. All of them are at <a href="https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged">huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged</a>, inside the <code>split_files</code> folder. Wan 2.2 is under the Apache 2.0 license.</p>
+    <p class="note"><b>Smaller is not automatically better.</b> A smaller file helps for one reason: less of it spills off the card. Every step down in bits costs a little exactness, so go only as small as you have to.</p>
+  </section>
+
+  <!-- 5 -->
+  <section class="sec yellow" id="settings">
+    <div class="sec-head"><span class="num">5</span><h2>Settings</h2><span class="tag">The knobs on the artists</span></div>
+    <p class="lead">Change <b>one at a time, with the seed fixed</b>, or you will never know which one did it. Values are for the 14B models. The 5B model's own defaults are underneath.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Knob</th><th>What it actually does</th><th>Turn it up and</th><th>Start at</th></tr></thead>
+        <tbody>
+          <tr><td class="name"><b>Resolution</b><small>width x height</small></td>
+            <td>How many pixels are in each frame.</td>
+            <td>Frames get sharper. Every step takes longer and needs more memory, climbing at least as fast as the pixel count. The 14B models are built for 480p and 720p, and 720p has more than twice the pixels of 480p.</td>
+            <td class="start"><span class="set">640 x 640</span><br>The template default, chosen for smaller cards. Then 832 x 480, then 1280 x 720 if your card can take it.</td></tr>
+          <tr><td class="name"><b>Length</b><small>frames, or duration in seconds</small></td>
+            <td>How long the clip is. Frames = seconds x 16, plus 1. The count moves in steps of 4, so 81 frames is 5 seconds.</td>
+            <td>Longer clip, and more work and memory on every single step. The official workflow is built around 5 seconds.</td>
+            <td class="start"><span class="set">81 frames = 5 seconds</span><br>Drop to 49 (3 seconds) if you are short on memory.</td></tr>
+          <tr><td class="name"><b>FPS</b><small>frames per second</small></td>
+            <td>Not a knob. The 14B models make 16 frames for every second. The 5B model makes 24.</td>
+            <td>If you change it in the save node, the same frames just play faster or slower.</td>
+            <td class="start"><span class="set">16</span><br>Leave it. Smoothing to a higher frame rate is a separate step done afterwards.</td></tr>
+          <tr><td class="name"><b>Seed</b></td>
+            <td>The exact pattern of static the artists start from. It is a number that picks a pattern, nothing more.</td>
+            <td>There is no up or down, only different. Same seed with everything else the same gives you the same video again. A new seed is a new take on the same prompt.</td>
+            <td class="start"><span class="set">fixed</span><br>While you test a setting.<br><span class="set" style="margin-top:8px">random</span><br>When you just want more takes.</td></tr>
+          <tr><td class="name"><b>Steps</b></td>
+            <td>How many cleanup passes the clip gets in total, shared between the two artists.</td>
+            <td>Cleaner picture and steadier motion. Time rises in a straight line.</td>
+            <td class="start"><span class="set">20</span><br>The official default without the Lightning LoRA.</td></tr>
+          <tr><td class="name"><b>Split step</b><small>the hand-over</small></td>
+            <td>The step where the first artist stops and the second takes over. In the node it shows up as an end step on one sampler and a start step on the other.</td>
+            <td>The first artist keeps the clip longer: more of the run goes to layout and motion, less to detail. Lower it and the reverse happens.</td>
+            <td class="start"><span class="set">10 of 20</span><br>Half way. Leave it there.</td></tr>
+          <tr><td class="name"><b>CFG</b></td>
+            <td>How hard to push toward your prompt and away from the negative prompt. Above 1, the artist runs twice on every step, once for each.</td>
+            <td>The video follows the prompt harder. Past a point it overcooks: harsh contrast, burnt colour, jittery motion.</td>
+            <td class="start"><span class="set">3.5</span><br>The official value. It is why 20 steps here really means 40 passes.</td></tr>
+          <tr><td class="name"><b>Negative prompt</b></td>
+            <td>A list of things you do not want. Unlike some newer models, it works here, because CFG is above 1.</td>
+            <td>Does not apply. The template ships a stock list in Chinese that asks for no blur, no subtitles, no extra fingers, no frozen frames.</td>
+            <td class="start"><span class="set">leave the stock one</span><br>Add to it if something keeps showing up.</td></tr>
+          <tr><td class="name"><b>Shift</b></td>
+            <td>Where the steps get spent. Higher puts more of them on the early, blurry stage where composition and movement are decided. Lower puts more on late fine detail.</td>
+            <td>The balance tips toward structure and away from detail.</td>
+            <td class="start"><span class="set">5</span><br>The value in the official text and image to video templates. The first and last frame template uses 8.</td></tr>
+          <tr><td class="name"><b>Sampler</b></td>
+            <td>The method the artists use on each pass to decide what to clean up next.</td>
+            <td>Not a more or less knob. A different sampler reaches a slightly different result in the same number of steps.</td>
+            <td class="start"><span class="set">euler</span><br>The official pick. Do not tune this early.</td></tr>
+          <tr><td class="name"><b>Scheduler</b></td>
+            <td>The pacing. It decides how much static comes off at each step: big chunks early, fine touches late.</td>
+            <td>Not a more or less knob either. Different pacing, same number of steps.</td>
+            <td class="start"><span class="set">simple</span><br>Leave it.</td></tr>
+          <tr><td class="name"><b>Lightning LoRA</b><small>one switch in the templates</small></td>
+            <td>Loads the 4-step LoRA pair and changes three things at once: steps to 4, split step to 2, CFG to 1.</td>
+            <td>Not a dial, a switch. On, a run is several times faster: the official notes list about 9 minutes dropping to under 2 on a 24 GB card at 640 x 640. The price, also from the official notes, is less motion. And with CFG at 1 the negative prompt is ignored.</td>
+            <td class="start"><span class="set">on for drafts</span><br><span class="set" style="margin-top:8px">off for keepers</span><br>When motion matters most.</td></tr>
+          <tr><td class="name"><b>LoRA strength</b></td>
+            <td>How hard a LoRA bends an artist.</td>
+            <td>Stronger effect, then overcooked: warped shapes, flicker, a look that swallows the prompt.</td>
+            <td class="start"><span class="set">1.0</span><br>Then nudge by 0.1 or 0.2. Keep the high and low halves of a pair the same.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="sub-h">The 5B model has its own defaults</h3>
+    <div class="tbl-wrap" style="margin-top:0">
+      <table class="tight">
+        <thead><tr><th>Resolution</th><th>Length</th><th>FPS</th><th>Steps</th><th>CFG</th><th>Shift</th><th>Sampler</th><th>VAE</th></tr></thead>
+        <tbody>
+          <tr><td class="file">1280 x 704</td><td class="file">121 frames = 5 s</td><td class="file">24</td><td class="file">20</td><td class="file">5</td><td class="file">8</td><td class="file">uni_pc, simple</td><td class="file">wan2.2_vae</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">One file, one sampler, no hand-over. These are the values in ComfyUI's built-in 5B template.</p>
+  </section>
+
+  <!-- 6 -->
+  <section class="sec red" id="hardware">
+    <div class="sec-head"><span class="num">6</span><h2>Your hardware</h2><span class="tag">Why it is slow, and what the errors mean</span></div>
+    <p class="lead"><b>The 14B models are heavy, mostly because there are two of everything.</b> They run on a 16 GB card. They are not quick.</p>
+
+    <div class="terms three-col">
+      <div class="term plain"><h4>VRAM <span class="role">The workbench</span></h4><p>The graphics card's own memory. Whatever is sitting on it gets worked on at full speed, so this is the number that decides what is comfortable. This guide assumes 16 GB.</p></div>
+      <div class="term plain"><h4>RAM <span class="role">The shelf</span></h4><p>The PC's regular memory. Model files wait here when it is not their turn, and anything that does not fit on the workbench lives here. This guide assumes 32 GB.</p></div>
+      <div class="term plain"><h4>Offloading <span class="role">The shuffle</span></h4><p>When a model is bigger than the workbench, ComfyUI keeps the overflow on the shelf and swaps pieces on and off the card as each is needed. It is automatic. The result comes out the same. It only costs time.</p></div>
+    </div>
+
+    <div class="callouts" style="grid-template-columns:1fr">
+      <div class="callout"><b class="h">The numbers</b>The default set is about <b>33 GB of model</b>: two artists at 13.3 each, reader 6.3, unpacker 0.2. They <b>take turns</b>, and only one artist is on the card at a time. A 13.3 GB artist is under the 16 GB line, but video needs a lot of working room on top, so expect part of it to spill. Half way through, the first artist is put away and the second is brought out. With 32 GB of RAM the pair only just fits on the shelf beside everything else, so that swap can end up reading from the disk. <b>Keep the models on an SSD.</b></div>
+    </div>
+
+    <div class="cols">
+      <div class="box">
+        <h4>Too slow, or out of memory? Pull these in order</h4>
+        <ol class="steps">
+          <li><b>Turn the Lightning LoRA on.</b> The biggest time saving there is. It does not save memory.</li>
+          <li><b>Smaller frame.</b> 640 x 640 or 832 x 480.</li>
+          <li><b>Shorter clip.</b> 49 frames is 3 seconds.</li>
+          <li><b>Smaller files.</b> A GGUF pair, Q5 or Q4, with the ComfyUI-GGUF node pack.</li>
+          <li><b>The 5B model.</b> One 9.3 GB file in place of two 13.3 GB ones.</li>
+          <li><b>Free the machine.</b> Close everything else that uses RAM or the graphics card.</li>
+        </ol>
+      </div>
+      <div class="box">
+        <h4>What an error is telling you</h4>
+        <dl class="errs">
+          <div><dt>Red boxes when a workflow opens</dt><dd>Missing custom nodes, or the workflow needs a newer ComfyUI. Update first, then let ComfyUI Manager install what is missing.</dd></div>
+          <div><dt>"Value not in list" on a loader</dt><dd>That file is not in the right models folder, or it has a different name than the workflow expects. Pick yours from the dropdown.</dd></div>
+          <div><dt>"CUDA out of memory" / "Allocation on device"</dt><dd>The card ran out of VRAM. Work down the list on the left.</dd></div>
+          <div><dt>Dies after the last step finished</dt><dd>Usually the VAE running out while unpacking. Lower the resolution.</dd></div>
+          <div><dt>The whole PC crawls or freezes</dt><dd>RAM is full and Windows is using the disk as memory. Close other programs, or move to smaller files.</dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <h3 class="sub-h">The other words in this corner</h3>
+    <div class="terms three-col">
+      <div class="term plain"><h4>CUDA / PyTorch <span class="role">The plumbing</span></h4><p>PyTorch is the math engine ComfyUI is built on. CUDA is NVIDIA's layer that lets PyTorch use the graphics card. Both come bundled with ComfyUI and you never touch them. You only meet them in messages: "CUDA out of memory" means the card is full, and a tag like <code>cu130</code> in the startup log is just the CUDA version PyTorch was built for.</p></div>
+      <div class="term plain"><h4>Custom node <span class="role">An add-on</span></h4><p>Every box on the canvas is a node. Custom nodes are boxes written by other people, installed through ComfyUI Manager. <b>Wan 2.2 itself needs none</b>: its nodes are built into ComfyUI. The one exception in this guide is GGUF files, which need the ComfyUI-GGUF pack. You only need a pack when a workflow you downloaded uses one. Each pack is code running on your PC, so stick to well-known ones.</p></div>
+      <div class="term plain"><h4>rgthree <span class="role">A popular pack</span></h4><p>A set of convenience nodes that shows up in a lot of shared workflows. The two you will meet most: a LoRA loader that stacks several LoRAs in one box, and switches that turn whole groups of a workflow on and off.</p></div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="sec" id="first-run">
+    <div class="sec-head"><span class="num">7</span><h2>First run</h2><span class="tag">A known-good starting point</span></div>
+    <p class="lead">Get one boring clip working with the official setup before you touch anything clever.</p>
+
+    <div class="cols">
+      <div class="box">
+        <h4>The recipe</h4>
+        <ol class="steps">
+          <li><b>Update ComfyUI.</b> The templates change often.</li>
+          <li><b>Open the built-in template.</b> Workflow menu, Browse Templates, search for Wan 2.2, pick the 14B text to video one.</li>
+          <li><b>Get the files.</b> ComfyUI lists what is missing and where it goes. It is the set from section 4, LoRAs included.</li>
+          <li><b>First test: Lightning on.</b> 640 x 640, 5 seconds. This proves everything loads without a long wait.</li>
+          <li><b>Second test: Lightning off.</b> Same seed, same prompt. It will take several times longer. Compare the motion.</li>
+          <li><b>Then change one thing.</b> Fix the seed, change a single knob, compare.</li>
+        </ol>
+      </div>
+      <div class="box">
+        <h4>The prompt</h4>
+        <p><b>Describe it like a shot.</b> Who or what, doing what, where, in what light, and how the camera moves: "the camera slowly pushes in", "a slow pan to the left". Long and specific beats short and vague.</p>
+        <p><b>For image to video,</b> the picture already shows what things look like. Spend the prompt on what happens next and what the camera does.</p>
+        <p><b>There is no sound,</b> so dialogue in the prompt gives you moving lips at best, not a voice.</p>
+        <p><b>Leave the negative prompt alone</b> until you have a reason to change it. It only works with the Lightning LoRA off.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <div class="src">Checked against: <a href="https://docs.comfy.org/tutorials/video/wan/wan2_2">ComfyUI Wan 2.2 docs</a>, <a href="https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged">Comfy-Org Wan 2.2 file list</a>, <a href="https://huggingface.co/Wan-AI/Wan2.2-T2V-A14B">Wan 2.2 model card</a>, ComfyUI's built-in nodes and templates. October 2026.</div>
+    <div>NimbleCloud13 &middot; Wan 2.2 Field Guide &middot; <a href="https://github.com/nimblecloud13/ComfyUI-MiniMax-H3-Guide">more guides</a></div>
+  </div>
+</main>
+
+<script>
+(function(){
+  if(!('IntersectionObserver' in window)) return;
+  var links=[].slice.call(document.querySelectorAll('.tab-btn')), map={};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)]=a; });
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting) return;
+      links.forEach(function(l){ l.classList.remove('active'); });
+      if(map[e.target.id]) map[e.target.id].classList.add('active');
+    });
+  },{rootMargin:'-18% 0px -72% 0px'});
+  [].forEach.call(document.querySelectorAll('section[id]'),function(s){ io.observe(s); });
+})();
+</script>
+</body>
+</html>

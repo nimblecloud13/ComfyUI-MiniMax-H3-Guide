@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ComfyUI + Qwen Image 2.1: what everything actually does</title>
+<style>
+:root{
+  --bg:#191c24; --bg-panel:#13161e; --bg-card:#1d2030; --bg-input:#0e1018; --bg-hi:#242840;
+  --border:#262b3c; --border-hi:#333a54;
+  --accent:#f59e0b; --accent-hi:#fbbf24; --accent-dim:rgba(245,158,11,.09); --accent-glow:rgba(245,158,11,.22);
+  --text:#f2f4fc; --text-dim:#c4cde4; --text-muted:#8a96b8;
+  --green:#4ade80; --red:#f87171; --blue:#60a5fa; --purple:#c084fc; --yellow:#fbbf24;
+  --t:.13s cubic-bezier(.4,0,.2,1);
+  --topbar-h:52px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+*{scrollbar-width:thin;scrollbar-color:var(--border-hi) transparent}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:7px}
+html{scroll-padding-top:70px}
+body{background:var(--bg);color:var(--text);font:14px/1.55 'Segoe UI',system-ui,sans-serif}
+a{color:var(--accent-hi);text-decoration:none;transition:var(--t)}
+a:hover{color:var(--accent)}
+code,.mono{font-family:'Consolas',monospace}
+code{font-size:12.5px;color:var(--text);background:var(--bg-input);border:1px solid var(--border);border-radius:4px;padding:1px 5px;white-space:nowrap}
+b,strong{color:var(--text);font-weight:700}
+
+/* topbar */
+.topbar{position:sticky;top:0;height:var(--topbar-h);background:var(--bg-panel);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:18px;padding:0 20px;z-index:20}
+.brand{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;white-space:nowrap;color:var(--text)}
+.brand .dot{width:9px;height:9px;border-radius:3px;background:var(--accent);box-shadow:0 0 10px var(--accent-glow)}
+.tabs{display:flex;gap:4px;margin-left:auto;overflow-x:auto}
+.tab-btn{height:34px;line-height:34px;padding:0 13px;border-radius:7px;font-size:12px;font-weight:600;
+  color:var(--text-muted);transition:var(--t);white-space:nowrap}
+.tab-btn:hover{color:var(--text);background:var(--bg-hi)}
+.tab-btn.active,.tab-btn.active:hover{color:#000;background:var(--accent);box-shadow:0 2px 12px var(--accent-glow)}
+
+/* page */
+.wrap{max-width:1180px;margin:0 auto;padding:30px 24px 56px}
+.hero h1{font-size:28px;line-height:1.2;font-weight:700;letter-spacing:-.2px}
+.hero .sub{font-size:16px;color:var(--text-dim);margin-top:8px;max-width:820px}
+.pills{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px;color:var(--text-muted);font-size:13px}
+.pill{font:12px 'Consolas',monospace;color:var(--text-dim);background:var(--bg-card);border:1px solid var(--border-hi);
+  border-radius:24px;padding:3px 11px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.three div{background:var(--bg-panel);border:1px solid var(--border);border-radius:7px;padding:12px 14px;color:var(--text-dim)}
+.three b{display:block;font-size:14.5px;margin-bottom:2px}
+
+.lbl{font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:5px}
+
+/* sections: color-coded cards */
+.sec{--c:var(--accent);--tint:rgba(245,158,11,.10);
+  background:linear-gradient(90deg,var(--tint) 0%,transparent 34%),var(--bg-card);
+  border:1px solid var(--border);border-left:3px solid var(--c);border-radius:7px;padding:22px 24px 26px;margin-top:22px}
+.sec.blue{--c:var(--blue);--tint:rgba(96,165,250,.10)}
+.sec.purple{--c:var(--purple);--tint:rgba(192,132,252,.10)}
+.sec.green{--c:var(--green);--tint:rgba(74,222,128,.09)}
+.sec.yellow{--c:var(--yellow);--tint:rgba(251,191,36,.09)}
+.sec.red{--c:var(--red);--tint:rgba(248,113,113,.10)}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .num{font:700 20px 'Consolas',monospace;color:var(--c)}
+.sec-head h2{font-size:21px;font-weight:700}
+.sec-head .tag{font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--c)}
+.lead{font-size:15.5px;color:var(--text-dim);margin-top:10px;max-width:900px}
+.lead b{color:var(--text)}
+h3.sub-h{font-size:15px;font-weight:700;margin:26px 0 12px;display:flex;align-items:center;gap:10px}
+h3.sub-h::after{content:"";flex:1;height:1px;background:var(--border)}
+p.note{color:var(--text-muted);font-size:13px;margin-top:12px;max-width:900px}
+
+/* pipeline */
+.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:26px;margin-top:20px}
+.stage{position:relative;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:14px 14px 13px}
+.stage h4{font-size:15px;font-weight:700;margin-bottom:5px}
+.stage p{color:var(--text-dim);font-size:13.5px}
+.stage .where{display:block;margin-top:9px;font:11.5px 'Consolas',monospace;color:var(--text-muted)}
+.stage:not(:last-child)::after{content:"";position:absolute;right:-18px;top:50%;width:8px;height:8px;
+  border-top:2px solid var(--border-hi);border-right:2px solid var(--border-hi);transform:translateY(-50%) rotate(45deg)}
+.stage.main{border-color:var(--accent);box-shadow:0 2px 12px var(--accent-glow)}
+.stage.main .lbl{color:var(--accent-hi)}
+
+.strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:22px}
+.tile svg{display:block;width:100%;height:auto;border-radius:7px;border:1px solid var(--border);background:var(--bg-input)}
+.tile span{display:block;text-align:center;font:11.5px 'Consolas',monospace;color:var(--text-muted);margin-top:6px}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;margin-top:18px;border:1px solid var(--border);border-radius:7px;background:var(--bg)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);text-align:left;
+  padding:11px 14px 9px;background:var(--bg-panel);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:13px 14px;vertical-align:top;color:var(--text-dim);border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+td.name{white-space:nowrap}
+td.name b{display:block;font-size:14.5px}
+td.name .code{font:700 15px 'Consolas',monospace;color:var(--c);display:block}
+td.name small{display:block;color:var(--text-muted);font-size:12px;margin-top:1px}
+td.start{min-width:210px}
+.set{display:inline-block;font:700 12.5px 'Consolas',monospace;color:var(--accent-hi);background:var(--accent-dim);
+  border:1px solid rgba(245,158,11,.38);border-radius:5px;padding:2px 8px;margin-bottom:5px}
+td.file{font:12.5px 'Consolas',monospace;color:var(--text);word-break:break-all}
+td.num{font:12.5px 'Consolas',monospace;color:var(--text);white-space:nowrap;text-align:right}
+
+/* term cards */
+.terms{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
+.terms.three-col{grid-template-columns:repeat(3,1fr)}
+.term{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:15px 17px 16px}
+.term h4{font-size:16px;font-weight:700;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.term h4 .role{font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--c)}
+.term .aka{font:11.5px 'Consolas',monospace;color:var(--text-muted);margin-top:2px}
+.term p{color:var(--text-dim);margin-top:4px}
+.term .lbl{margin:12px 0 0}
+.term p.fine{color:var(--text-muted);font-size:12.5px;margin-top:10px}
+.term.plain h4{font-size:14.5px}
+.term.plain p{margin-top:5px;font-size:13.5px}
+
+/* callouts */
+.callouts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.callout{background:var(--bg-panel);border:1px solid var(--border);border-radius:7px;padding:14px 16px;color:var(--text-dim);font-size:13.5px}
+.callout b.h{display:block;font-size:14.5px;margin-bottom:4px}
+
+/* filename decoder */
+.fname{display:flex;flex-wrap:wrap;gap:3px;margin-top:18px;font:700 17px 'Consolas',monospace}
+.fname span{padding:7px 10px;border-radius:5px;border:1px solid}
+.seg-a{color:var(--blue);background:rgba(96,165,250,.11);border-color:rgba(96,165,250,.4)}
+.seg-b{color:var(--purple);background:rgba(192,132,252,.11);border-color:rgba(192,132,252,.4)}
+.seg-c{color:var(--green);background:rgba(74,222,128,.10);border-color:rgba(74,222,128,.4)}
+.seg-d{color:var(--yellow);background:rgba(251,191,36,.10);border-color:rgba(251,191,36,.4)}
+.seg-e{color:var(--text-muted);background:var(--bg);border-color:var(--border-hi)}
+.decode{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:10px}
+.decode div{border-top:2px solid;padding-top:8px;font-size:13px;color:var(--text-dim)}
+.decode b{display:block;font:700 13px 'Consolas',monospace;margin-bottom:2px}
+.decode .seg-a,.decode .seg-b,.decode .seg-c,.decode .seg-d,.decode .seg-e{background:none}
+.decode .seg-a b{color:var(--blue)}.decode .seg-b b{color:var(--purple)}.decode .seg-c b{color:var(--green)}
+.decode .seg-d b{color:var(--yellow)}.decode .seg-e b{color:var(--text-muted)}
+
+/* size chart */
+.chart{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:18px 18px 16px;margin-top:18px}
+.chart-title{font-size:14.5px;font-weight:700}
+.legend{display:flex;flex-wrap:wrap;gap:18px;margin-top:8px;font-size:12.5px;color:var(--text-dim)}
+.legend i{display:inline-block;width:22px;height:10px;border-radius:2px;margin-right:7px;vertical-align:-1px}
+.sw-on{background:var(--blue)}
+.sw-over{background:repeating-linear-gradient(135deg,rgba(96,165,250,.7) 0 2px,rgba(96,165,250,.14) 2px 6px);box-shadow:inset 0 0 0 1px rgba(96,165,250,.45)}
+.sw-line{width:2px !important;height:13px !important;background:var(--accent);border-radius:0 !important;vertical-align:-3px !important}
+.grp{font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin:18px 0 0}
+.rows{margin-top:8px}
+.row{display:grid;grid-template-columns:186px 1fr 64px 212px;align-items:center;column-gap:14px;height:28px;border-radius:5px;transition:var(--t)}
+.row:hover{background:var(--bg-hi)}
+.row .n{font:12.5px 'Consolas',monospace;color:var(--text);padding-left:6px;white-space:nowrap}
+.row .v{font:12.5px 'Consolas',monospace;color:var(--text);text-align:right;white-space:nowrap}
+.row .c{font-size:12.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .c .set{margin:0 6px 0 0;font-size:11px;padding:1px 6px}
+.track{position:relative;height:28px;display:flex;align-items:center;gap:2px}
+.track::after{content:"";position:absolute;left:25%;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--accent)}
+.on{height:12px;background:var(--blue)}
+.on.end{border-radius:0 4px 4px 0}
+.over{height:12px;border-radius:0 4px 4px 0;
+  background:repeating-linear-gradient(135deg,rgba(96,165,250,.7) 0 2px,rgba(96,165,250,.14) 2px 6px);box-shadow:inset 0 0 0 1px rgba(96,165,250,.45)}
+.axis{display:grid;grid-template-columns:186px 1fr 64px 212px;column-gap:14px;margin-top:4px}
+.axis .ticks{position:relative;height:18px;border-top:1px solid var(--border)}
+.axis .ticks span{position:absolute;top:4px;transform:translateX(-50%);font:11px 'Consolas',monospace;color:var(--text-muted);white-space:nowrap}
+.axis .ticks span.me{color:var(--text);font-weight:700}
+
+/* lists */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
+.box{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:16px 18px}
+.box h4{font-size:15px;font-weight:700;margin-bottom:8px}
+ol.steps{list-style:none;counter-reset:s}
+ol.steps li{counter-increment:s;position:relative;padding:7px 0 7px 34px;color:var(--text-dim);border-bottom:1px solid var(--border)}
+ol.steps li:last-child{border-bottom:none}
+ol.steps li::before{content:counter(s);position:absolute;left:0;top:7px;width:22px;height:22px;border-radius:5px;
+  font:700 12px/22px 'Consolas',monospace;text-align:center;color:var(--c);background:var(--bg-panel);border:1px solid var(--border-hi)}
+dl.errs div{padding:8px 0;border-bottom:1px solid var(--border)}
+dl.errs div:last-child{border-bottom:none}
+dl.errs dt{font:12.5px 'Consolas',monospace;color:var(--text)}
+dl.errs dd{color:var(--text-dim);font-size:13.5px;margin-top:2px}
+
+.foot{margin-top:30px;padding-top:16px;border-top:1px solid var(--border);color:var(--text-muted);font-size:12.5px;
+  display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between}
+.foot .src a{color:var(--text-dim)}
+.foot .src a:hover{color:var(--accent-hi)}
+
+@media (max-width:980px){
+  .flow,.decode{grid-template-columns:1fr}
+  .stage:not(:last-child)::after{right:50%;top:auto;bottom:-17px;transform:rotate(135deg)}
+  .terms,.terms.three-col,.callouts,.cols,.three{grid-template-columns:1fr}
+  .strip{grid-template-columns:repeat(3,1fr)}
+  .row,.axis{grid-template-columns:150px 1fr 60px}
+  .row .c,.axis .pad2{display:none}
+}
+/* additions on top of base.css for the newer guides */
+
+/* size chart on a 0 to 32 GB scale: amber line at 16, faint lines at 8, 12 and 24 */
+.chart.s32 .track{z-index:0}
+.chart.s32 .track::after{left:50%}
+.chart.s32 .track::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:
+    linear-gradient(var(--border-hi),var(--border-hi)) 25% 0/1px 100% no-repeat,
+    linear-gradient(var(--border-hi),var(--border-hi)) 37.5% 0/1px 100% no-repeat,
+    linear-gradient(var(--border-hi),var(--border-hi)) 75% 0/1px 100% no-repeat}
+
+/* filename decoder with 4 or 6 parts */
+.decode.c4{grid-template-columns:repeat(4,1fr)}
+.decode.c6{grid-template-columns:repeat(6,1fr)}
+.seg-f{color:var(--red);background:rgba(248,113,113,.10);border-color:rgba(248,113,113,.4)}
+.decode .seg-f{background:none}
+.decode .seg-f b{color:var(--red)}
+
+/* two-up callouts and compact reference tables */
+.callouts.two{grid-template-columns:1fr 1fr}
+table.tight td{padding:8px 14px}
+.box p{color:var(--text-dim)}
+.box p + p{margin-top:10px}
+
+@media (max-width:980px){
+  .decode.c4,.decode.c6,.callouts.two{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2a55"/><stop offset=".62" stop-color="#b4562f"/><stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.95" numOctaves="2" seed="11"/>
+      <feColorMatrix type="matrix" values="3.2 0 0 0 -1.1  3.2 0 0 0 -1.1  3.2 0 0 0 -1.1  0 0 0 0 1"/>
+    </filter>
+    <filter id="blur4" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="blur3" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="blur2" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="2"/></filter>
+    <filter id="blur1" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation=".8"/></filter>
+    <g id="scene">
+      <rect width="160" height="90" fill="url(#sky)"/>
+      <circle cx="112" cy="47" r="12" fill="#fde68a"/>
+      <path d="M0 64 L28 40 L50 58 L78 32 L112 62 L136 48 L160 64 V90 H0Z" fill="#232a48"/>
+      <path d="M0 76 L40 61 L82 73 L122 63 L160 77 V90 H0Z" fill="#0e1018"/>
+    </g>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="brand"><span class="dot"></span>ComfyUI + Qwen Image 2.1</div>
+  <nav class="tabs">
+    <a class="tab-btn" href="#picture" title="How a picture gets made, start to finish">Big picture</a>
+    <a class="tab-btn" href="#modes" title="Text to image, editing, references, transparency">What it does</a>
+    <a class="tab-btn" href="#parts" title="The model files a workflow loads">Parts</a>
+    <a class="tab-btn" href="#files" title="How to read a filename and which file to download">Files</a>
+    <a class="tab-btn" href="#settings" title="Resolution, steps, CFG and the rest">Settings</a>
+    <a class="tab-btn" href="#hardware" title="VRAM, RAM, offloading, errors">Hardware</a>
+    <a class="tab-btn" href="#first-run" title="A known-good starting recipe">First run</a>
+  </nav>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <h1>ComfyUI + Qwen Image 2.1: what everything actually does</h1>
+    <p class="sub">Plain English. No definitions that define nothing. Every part and setting gets the same three answers.</p>
+    <div class="three">
+      <div><b>What is it?</b>In words, not more acronyms.</div>
+      <div><b>What does it do?</b>To your picture, or your wait.</div>
+      <div><b>What do I set it to?</b>A real starting value.</div>
+    </div>
+    <div class="pills">Sized for <span class="pill">16 GB VRAM</span><span class="pill">32 GB RAM</span> with notes for smaller cards</div>
+  </div>
+
+  <!-- 1 -->
+  <section class="sec" id="picture">
+    <div class="sec-head"><span class="num">1</span><h2>The big picture</h2><span class="tag">Read this first</span></div>
+    <p class="lead"><b>Qwen Image 2.1 does not paint the way you would.</b> It starts with a screen of pure static and cleans it up a little at a time until it looks like your prompt. The same model does two jobs: make a picture from words, or change a picture you hand it.</p>
+
+    <div class="flow">
+      <div class="stage"><div class="lbl">You</div><h4>Prompt</h4><p>Your words, plus one or more pictures if you are editing.</p></div>
+      <div class="stage"><div class="lbl">The reader</div><h4>Text encoder</h4><p>Reads the prompt, looks at your pictures, and turns it all into numbers the artist can follow. Runs once per prompt.</p><span class="where">Load CLIP</span></div>
+      <div class="stage main"><div class="lbl">The artist</div><h4>Diffusion model</h4><p>Starts from static and cleans it up one step at a time, steered by the reader's numbers. Nearly all of your wait is here.</p><span class="where">Load Diffusion Model</span></div>
+      <div class="stage"><div class="lbl">The unpacker</div><h4>VAE</h4><p>The artist works on a small compressed version. The VAE turns it back into real pixels, transparency included.</p><span class="where">Load VAE</span></div>
+      <div class="stage"><div class="lbl">Result</div><h4>PNG</h4><p>Up to 2048 x 2048, with a see-through background if you asked for one.</p></div>
+    </div>
+
+<div class="strip" role="img" aria-label="Six tiles showing static turning into a clear picture as the step count rises">
+      <div class="tile"><svg viewBox="0 0 160 90"><rect width="160" height="90" filter="url(#grain)"/></svg><span>start: static</span></div>
+      <div class="tile"><svg viewBox="0 0 160 90"><use href="#scene" filter="url(#blur4)"/><rect width="160" height="90" filter="url(#grain)" opacity=".74"/></svg><span>step 4</span></div>
+      <div class="tile"><svg viewBox="0 0 160 90"><use href="#scene" filter="url(#blur3)"/><rect width="160" height="90" filter="url(#grain)" opacity=".48"/></svg><span>step 8</span></div>
+      <div class="tile"><svg viewBox="0 0 160 90"><use href="#scene" filter="url(#blur2)"/><rect width="160" height="90" filter="url(#grain)" opacity=".26"/></svg><span>step 12</span></div>
+      <div class="tile"><svg viewBox="0 0 160 90"><use href="#scene" filter="url(#blur1)"/><rect width="160" height="90" filter="url(#grain)" opacity=".1"/></svg><span>step 16</span></div>
+      <div class="tile"><svg viewBox="0 0 160 90"><use href="#scene"/></svg><span>step 20: done</span></div>
+    </div>
+    <p class="note">A step is one cleanup pass. More passes, cleaner result, longer wait. (A drawing of the idea, not real output.)</p>
+    <p class="lead" style="margin-top:16px">Everything else on this page is one of three things: <b>a part</b> of that assembly line, <b>a file</b> that one of the parts loads, or <b>a knob</b> on the artist.</p>
+  </section>
+
+  <!-- 2 -->
+  <section class="sec blue" id="modes">
+    <div class="sec-head"><span class="num">2</span><h2>What it does</h2><span class="tag">One model, five jobs</span></div>
+    <p class="lead">There is no mode switch. <b>What you plug in and what you ask for decides the job.</b></p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Job</th><th>You give it</th><th>What it does with it</th><th>Reach for it when</th></tr></thead>
+        <tbody>
+          <tr><td class="name"><span class="code">Text to image</span></td>
+            <td>A prompt. Nothing else.</td>
+            <td>Invents the whole picture. It is unusually good at readable text inside the image: signs, labels, posters, page layouts.</td>
+            <td>You are starting from nothing, or you need words in the picture to actually be spelled right.</td></tr>
+          <tr><td class="name"><span class="code">Image edit</span></td>
+            <td>A prompt and one picture, as <code>image_1</code>.</td>
+            <td>Changes what you ask for and leaves the rest alone. The output keeps the size and shape of your picture.</td>
+            <td>You like a picture and want one thing different: the outfit, the background, the lighting, an object removed.</td></tr>
+          <tr><td class="name"><span class="code">Edit with references</span></td>
+            <td>A prompt and up to 10 pictures.</td>
+            <td><code>image_1</code> is the picture being edited. The others are things to borrow from: a shirt, a face, a product, a style.</td>
+            <td>You want to combine things. "Put the shirt from <code>&lt;image2&gt;</code> on the person in <code>&lt;image1&gt;</code>."</td></tr>
+          <tr><td class="name"><span class="code">Transparent image</span></td>
+            <td>A prompt wrapped in one set sentence (section 7).</td>
+            <td>Makes the subject on a truly see-through background, not a white one. This is what RGBA means: the usual red, green and blue, plus an alpha channel for transparency.</td>
+            <td>You need a cut-out you can drop onto something else: a logo, a sticker, a product shot.</td></tr>
+          <tr><td class="name"><span class="code">Background removal</span></td>
+            <td>One picture and the prompt "Remove the background, and output a PNG image".</td>
+            <td>Returns your subject with the background made transparent.</td>
+            <td>You already have the picture and only want the cut-out.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callouts">
+      <div class="callout"><b class="h">One file does all of it</b>Generating and editing use the same diffusion model. If nothing is plugged into the image inputs, it generates. If a picture is plugged in, it edits. ComfyUI ships a separate template for each job so you do not have to rewire anything.</div>
+      <div class="callout"><b class="h">Name your pictures in the prompt</b>The model only knows which picture you mean if you say so. Call them by tag, in the order they are plugged in: <code>&lt;image1&gt;</code> <code>&lt;image2&gt;</code> up to <code>&lt;image10&gt;</code>. The first one is always the picture being edited.</div>
+      <div class="callout"><b class="h">Say what stays</b>An edit prompt works best with two halves: what to change, and what to keep. "Keep the character and pose in <code>&lt;image1&gt;</code> unchanged" does as much work as the change itself.</div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="sec purple" id="parts">
+    <div class="sec-head"><span class="num">3</span><h2>The parts</h2><span class="tag">What each file you load is for</span></div>
+    <p class="lead">A workflow loads <b>three model files</b>. Each one has its own loader box on the canvas.</p>
+
+    <div class="terms three-col">
+      <div class="term">
+        <h4>Diffusion model <span class="role">The artist</span></h4>
+        <div class="aka">also called: checkpoint, UNet, DiT &nbsp;|&nbsp; field: unet_name</div>
+        <div class="lbl">What it does</div>
+        <p>Makes the picture. This <b>is</b> the model. About 7 billion numbers, which is small by current standards.</p>
+        <div class="lbl">Why you care</div>
+        <p>It works on every single step, so it sets your speed. Because it is small, it is one of the easier current models to run well on a mid-range card.</p>
+      </div>
+      <div class="term">
+        <h4>Text encoder <span class="role">The reader</span></h4>
+        <div class="aka">also called: CLIP &nbsp;|&nbsp; field: clip_name</div>
+        <div class="lbl">What it does</div>
+        <p>Reads your prompt and looks at any pictures you plugged in, then hands the artist numbers that mean the same thing.</p>
+        <div class="lbl">Why you care</div>
+        <p>It is a full language and vision model (Qwen3-VL, 8 billion parameters) and it is <b>bigger than the artist</b>. It runs once per prompt, then steps aside. Change only the seed and ComfyUI reuses its last answer.</p>
+        <p class="fine">Set the loader's type to <code>qwen_image</code>.</p>
+      </div>
+      <div class="term">
+        <h4>VAE <span class="role">The unpacker</span></h4>
+        <div class="aka">field: vae_name</div>
+        <div class="lbl">What it does</div>
+        <p>Turns the artist's compressed result into real pixels, and squeezes your input pictures down on the way in.</p>
+        <div class="lbl">Why you care</div>
+        <p>The 2.1 VAE carries four channels, not three. The fourth is transparency. Use <code>qwen_image_2.1_vae_bf16</code>. The older <code>qwen_image_vae</code> belongs to earlier Qwen Image models.</p>
+      </div>
+    </div>
+
+    <h3 class="sub-h">Optional parts you will see in the templates</h3>
+    <div class="terms">
+      <div class="term plain"><h4>Prompt enhancer <span class="role">The rewriter</span></h4><p>A second language model that rewrites your short prompt into a long, detailed one before the reader sees it. It comes in two files: <code>pe_t2i</code> for making pictures and <code>pe_i2i</code> for edits. It costs another 6 to 9 GB to load and its own wait. Leave it off while you are learning, so the picture reflects what <b>you</b> typed.</p></div>
+      <div class="term plain"><h4>Qwen Image 2.1 Cache <span class="role">A speed-up for edits</span></h4><p>During an edit, your prompt and reference pictures are the same on every step. This node lets the model work that part out once and reuse it. <code>device</code> says where the saved work is kept: <code>auto</code> uses spare VRAM, then RAM. <code>dtype</code> shrinks it: <code>int8</code> halves it at about the same accuracy. Leave both on their defaults unless you run out of memory.</p></div>
+    </div>
+
+    <h3 class="sub-h">Add-ons and words you will keep seeing</h3>
+    <div class="terms">
+      <div class="term plain"><h4>LoRA</h4><p>A small patch file that sits on top of the artist and bends it toward something: a face, a style, a product, or speed. <b>Strength</b> is how hard it bends. 0 is off, 1.0 is what its maker intended, and well past that the picture overcooks. It has to be made for Qwen Image 2.1. LoRAs for older Qwen Image models are not a safe bet.</p></div>
+      <div class="term plain"><h4>Turbo</h4><p>A version taught to finish in 8 steps. It comes two ways: as its own diffusion model (<code>qwen_image_2.1_turbo</code>) or as a LoRA you add to the normal one. It is a recent addition, so update ComfyUI before looking for it.</p></div>
+      <div class="term plain"><h4>Checkpoint</h4><p>Just means a saved model file. People use it loosely for the diffusion model.</p></div>
+      <div class="term plain"><h4>.safetensors</h4><p>The container, like .zip or .mp4. It tells you nothing about what is inside. The name is literal: the file can only hold numbers, so it cannot hide a program the way the older .ckpt and .pt files could.</p></div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="sec green" id="files">
+    <div class="sec-head"><span class="num">4</span><h2>File names</h2><span class="tag">Which one to download</span></div>
+    <p class="lead">Read a model's filename left to right and it tells you exactly what you are getting.</p>
+
+    <div class="fname" aria-label="Example filename split into its parts">
+      <span class="seg-a">qwen_image</span><span class="seg-b">_2.1</span><span class="seg-d">_int8_convrot</span><span class="seg-e">.safetensors</span>
+    </div>
+    <div class="decode c4">
+      <div class="seg-a" style="border-color:var(--blue)"><b>qwen_image</b>The model family.</div>
+      <div class="seg-b" style="border-color:var(--purple)"><b>2.1</b>The version. Files for 2.1 only work with other 2.1 files. If you see <code>_turbo</code> after it, that is the 8-step version.</div>
+      <div class="seg-d" style="border-color:var(--yellow)"><b>int8_convrot</b>How its numbers are stored. This is the part that sets the file size.</div>
+      <div class="seg-e" style="border-color:var(--border-hi)"><b>.safetensors</b>The container. Ignore it.</div>
+    </div>
+
+    <h3 class="sub-h">The one idea behind all the letters</h3>
+    <p class="lead" style="margin-top:0">A model is a giant list of numbers. The letters say <b>how many bits each number is stored with</b>. Fewer bits: smaller file, more of it fits on your card, slightly less exact result. Same trade as JPEG quality or MP3 bitrate.</p>
+
+    <div class="terms">
+      <div class="term plain"><h4 class="mono">bf16</h4><p>16 bits per number. The original, full-quality file, and the biggest one.</p></div>
+      <div class="term plain"><h4 class="mono">int8</h4><p>8 bits per number, stored as whole numbers. About half the size of the 16-bit original.</p></div>
+      <div class="term plain"><h4 class="mono">convrot</h4><p>The trick that makes int8 hold up. Before rounding, the numbers get shuffled so a few extreme values cannot wreck the precision of the rest. You set nothing. Read it as "the good int8". It wants an up-to-date ComfyUI.</p></div>
+      <div class="term plain"><h4 class="mono">w4a8</h4><p>4-bit weights, 8-bit activations. Weights are the model's stored numbers. Activations are the numbers flowing through it while it works. Smaller again than int8, and a little rougher.</p></div>
+    </div>
+
+    <div class="chart s32">
+      <div class="chart-title">File size against your card</div>
+      <div class="legend">
+        <span><i class="sw-on"></i>fits on a 16 GB card</span>
+        <span><i class="sw-over"></i>past 16 GB, spills into system RAM</span>
+        <span><i class="sw-line"></i>16 GB</span>
+        <span>faint lines: 8, 12 and 24 GB</span>
+      </div>
+
+      <div class="grp">Diffusion model (the turbo files are the same sizes)</div>
+      <div class="rows">
+        <div class="row" title="Diffusion model bf16: 13.2 GB. Under the 16 GB line, over 8 and 12."><span class="n">bf16</span><div class="track"><div class="on end" style="width:41.3%"></div></div><span class="v">13.2 GB</span><span class="c">full quality, fits 16 GB</span></div>
+        <div class="row" title="Diffusion model int8_convrot: 6.8 GB. Under every line on the chart."><span class="n">int8_convrot</span><div class="track"><div class="on end" style="width:21.3%"></div></div><span class="v">6.8 GB</span><span class="c"><span class="set">start here</span>official default</span></div>
+      </div>
+
+      <div class="grp">Text encoder</div>
+      <div class="rows">
+        <div class="row" title="Text encoder bf16: 16.3 GB. Just past the 16 GB line."><span class="n">bf16</span><div class="track"><div class="on" style="width:50%"></div><div class="over" style="width:0.9%"></div></div><span class="v">16.3 GB</span><span class="c">for 24 GB cards</span></div>
+        <div class="row" title="Text encoder int8_convrot: 8.7 GB. Under 12 and 16, just over 8."><span class="n">int8_convrot</span><div class="track"><div class="on end" style="width:27.2%"></div></div><span class="v">8.7 GB</span><span class="c"><span class="set">start here</span>official default</span></div>
+        <div class="row" title="Text encoder w4a8: 5.9 GB. Under every line on the chart."><span class="n">w4a8</span><div class="track"><div class="on end" style="width:18.4%"></div></div><span class="v">5.9 GB</span><span class="c">for 8 GB cards</span></div>
+      </div>
+
+      <div class="grp">Prompt enhancer (optional)</div>
+      <div class="rows">
+        <div class="row" title="Prompt enhancer int8_convrot: 8.8 GB."><span class="n">int8_convrot</span><div class="track"><div class="on end" style="width:27.5%"></div></div><span class="v">8.8 GB</span><span class="c">one file each for t2i and i2i</span></div>
+        <div class="row" title="Prompt enhancer w4a8: 6.3 GB."><span class="n">w4a8</span><div class="track"><div class="on end" style="width:19.7%"></div></div><span class="v">6.3 GB</span><span class="c">smaller version</span></div>
+      </div>
+      <div class="axis"><span></span><div class="ticks"><span style="left:0;transform:none">0</span><span style="left:25%">8</span><span style="left:37.5%">12</span><span class="me" style="left:50%">16</span><span style="left:75%">24</span><span style="left:100%;transform:translateX(-100%)">32 GB</span></div><span></span><span class="pad2"></span></div>
+      <p class="note" style="margin-top:14px">Sizes are the official files. A model also needs working room on the card while it runs, more of it at 2K than at 1K, so a file that sits right under your line is tighter than it looks.</p>
+    </div>
+
+    <h3 class="sub-h">Download this set</h3>
+    <div class="tbl-wrap" style="margin-top:0">
+      <table>
+        <thead><tr><th>Part</th><th>File</th><th style="text-align:right">Size</th><th>Goes in ComfyUI/models/</th></tr></thead>
+        <tbody>
+          <tr><td class="name"><b>Diffusion model</b></td><td class="file">qwen_image_2.1_int8_convrot.safetensors</td><td class="num">6.8 GB</td><td><code>diffusion_models</code></td></tr>
+          <tr><td class="name"><b>Text encoder</b></td><td class="file">qwen3vl_8b_int8_convrot.safetensors</td><td class="num">8.7 GB</td><td><code>text_encoders</code></td></tr>
+          <tr><td class="name"><b>VAE</b></td><td class="file">qwen_image_2.1_vae_bf16.safetensors</td><td class="num">0.6 GB</td><td><code>vae</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">This is the exact set ComfyUI's built-in Qwen Image 2.1 templates ask for, and the same three files cover generating and editing. All of it is at <a href="https://huggingface.co/Comfy-Org/Qwen-Image-2.1">huggingface.co/Comfy-Org/Qwen-Image-2.1</a>. The model card lists the Qwen Research License, so read it before any commercial use.</p>
+    <p class="note"><b>Smaller is not automatically better.</b> A smaller file helps for one reason: more of it fits on the card. Every step down in bits costs a little exactness. On a 16 GB card the default set already fits, so the upgrade worth trying is the <code>bf16</code> diffusion model. Compare it against the default with the same seed before you keep it.</p>
+  </section>
+
+  <!-- 5 -->
+  <section class="sec yellow" id="settings">
+    <div class="sec-head"><span class="num">5</span><h2>Settings</h2><span class="tag">The knobs on the artist</span></div>
+    <p class="lead">Change <b>one at a time, with the seed fixed</b>, or you will never know which one did it.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Knob</th><th>What it actually does</th><th>Turn it up and</th><th>Start at</th></tr></thead>
+        <tbody>
+          <tr><td class="name"><b>Resolution</b><small>megapixels, or width x height</small></td>
+            <td>How many pixels are in the picture. The template sets it as megapixels plus a shape (square, wide, tall), and works out width and height for you in multiples of 32.</td>
+            <td>The picture gets sharper and holds more small detail. Time and memory climb at least as fast as the pixel count: 2K has four times the pixels of 1K. The model's native ceiling is 2048 x 2048.</td>
+            <td class="start"><span class="set">1 MP = 1024 x 1024</span><br>Go to 4 MP (2048 x 2048) once it runs and you want the detail.</td></tr>
+          <tr><td class="name"><b>Seed</b></td>
+            <td>The exact pattern of static the artist starts from. It is a number that picks a pattern, nothing more.</td>
+            <td>There is no up or down, only different. Same seed with everything else the same gives you the same picture again. A new seed is a new take on the same prompt.</td>
+            <td class="start"><span class="set">fixed</span><br>While you test a setting.<br><span class="set" style="margin-top:8px">random</span><br>When you just want more takes.</td></tr>
+          <tr><td class="name"><b>Steps</b></td>
+            <td>How many cleanup passes the artist gets.</td>
+            <td>Cleaner detail and better text. Time rises in a straight line: 50 steps takes twice as long as 25. Qwen's own reference setup uses 40 to 50. ComfyUI's template starts at 25 because that is usually enough.</td>
+            <td class="start"><span class="set">25</span><br>Go to 30 or more if small detail or lettering stays muddy.</td></tr>
+          <tr><td class="name"><b>CFG</b></td>
+            <td>How hard to push toward the prompt and away from the negative prompt. At 1 it is off. Above 1, the artist runs twice on every step, once for each.</td>
+            <td>The picture follows the prompt harder and every step takes twice as long. Past a point it overcooks: harsh contrast, burnt colour.</td>
+            <td class="start"><span class="set">1</span><br>This is the official path. Raise it, to about 2, only if you are using a negative prompt.</td></tr>
+          <tr><td class="name"><b>Negative prompt</b></td>
+            <td>A list of things you do not want in the picture.</td>
+            <td>Does not apply at the default. With CFG at 1 this box is ignored completely, however much you type in it.</td>
+            <td class="start"><span class="set">leave it empty</span><br>It only works once CFG is above 1.</td></tr>
+          <tr><td class="name"><b>Sampler</b></td>
+            <td>The method the artist uses on each pass to decide what to clean up next.</td>
+            <td>Not a more or less knob. A different sampler reaches a slightly different result in the same number of steps. Fancier ones can get there in fewer.</td>
+            <td class="start"><span class="set">euler</span><br>The official pick. Do not tune this early.</td></tr>
+          <tr><td class="name"><b>Scheduler</b></td>
+            <td>The pacing. It decides how much static comes off at each step: big chunks early, when the layout gets decided, and fine touches late.</td>
+            <td>Not a more or less knob either. Different pacing, same number of steps.</td>
+            <td class="start"><span class="set">simple</span><br>Leave it.</td></tr>
+          <tr><td class="name"><b>Turbo</b></td>
+            <td>The 8-step version of the model, loaded as its own file or as a LoRA.</td>
+            <td>Runs finish in about a third of the time. Expect to give up some fine detail for it.</td>
+            <td class="start"><span class="set">8 steps</span><br>Use it for trying prompts. Do the keeper on the normal model.</td></tr>
+          <tr><td class="name"><b>resolution</b><small>edit workflows only</small></td>
+            <td>Not the output size. It is how big your reference pictures are when the model looks at them: about this many pixels on each side, keeping their shape.</td>
+            <td>The model sees more detail in your references, and each step costs more. 0 means look at each picture at its own size.</td>
+            <td class="start"><span class="set">1024</span><br>The official default. The model supports up to 2048.</td></tr>
+          <tr><td class="name"><b>custom_size</b><small>edit workflows only</small></td>
+            <td>Off: the result is the same size as <code>image_1</code>. On: the result uses the size you set yourself.</td>
+            <td>Does not apply. If you turn it on, keep the size close to <code>image_1</code>, or the edit drifts.</td>
+            <td class="start"><span class="set">off</span><br>Let the picture you are editing set the size.</td></tr>
+          <tr><td class="name"><b>LoRA strength</b></td>
+            <td>How hard a LoRA bends the artist.</td>
+            <td>Stronger effect, then overcooked: waxy skin, harsh contrast, warped shapes.</td>
+            <td class="start"><span class="set">1.0</span><br>Then nudge by 0.1 or 0.2.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="sec red" id="hardware">
+    <div class="sec-head"><span class="num">6</span><h2>Your hardware</h2><span class="tag">Why it is slow, and what the errors mean</span></div>
+    <p class="lead"><b>This is one of the friendlier models to run.</b> Every part of the default set is smaller than a 16 GB card.</p>
+
+    <div class="terms three-col">
+      <div class="term plain"><h4>VRAM <span class="role">The workbench</span></h4><p>The graphics card's own memory. Whatever is sitting on it gets worked on at full speed, so this is the number that decides what is comfortable. This guide assumes 16 GB.</p></div>
+      <div class="term plain"><h4>RAM <span class="role">The shelf</span></h4><p>The PC's regular memory. Model files wait here when it is not their turn, and anything that does not fit on the workbench lives here. This guide assumes 32 GB.</p></div>
+      <div class="term plain"><h4>Offloading <span class="role">The shuffle</span></h4><p>When a model is bigger than the workbench, ComfyUI keeps the overflow on the shelf and swaps pieces on and off the card as each is needed. It is automatic. The result comes out the same. It only costs time.</p></div>
+    </div>
+
+    <div class="callouts" style="grid-template-columns:1fr">
+      <div class="callout"><b class="h">The numbers</b>The default set is about <b>16 GB of model</b> in total: artist 6.8, reader 8.7, unpacker 0.6. They do not all sit on the card at once. They <b>take turns</b>: the reader goes first and steps aside, the artist does its steps, the unpacker finishes. On 16 GB nothing has to spill. On 12 GB it still fits. On 8 GB the artist fits and the reader does not quite, which is what the <code>w4a8</code> reader is for.</div>
+    </div>
+
+    <div class="cols">
+      <div class="box">
+        <h4>Too slow, or out of memory? Pull these in order</h4>
+        <ol class="steps">
+          <li><b>Lower the megapixels.</b> Back to 1. The biggest saving for one click.</li>
+          <li><b>Fewer steps.</b> 25, or Turbo at 8. This saves time, not memory.</li>
+          <li><b>Turn the prompt enhancer off.</b> It is a whole extra model to load and run.</li>
+          <li><b>A smaller reader.</b> <code>qwen3vl_8b_w4a8</code> (5.9 GB) in place of the int8 one.</li>
+          <li><b>For edits, shrink the cache.</b> Set <code>dtype</code> to <code>int8</code> on the Qwen Image 2.1 Cache node, and use fewer or smaller reference pictures.</li>
+          <li><b>Free the machine.</b> Close everything else that uses RAM or the graphics card.</li>
+        </ol>
+      </div>
+      <div class="box">
+        <h4>What an error is telling you</h4>
+        <dl class="errs">
+          <div><dt>Red boxes when a workflow opens</dt><dd>Missing custom nodes, or the workflow needs a newer ComfyUI. Update first, then let ComfyUI Manager install what is missing.</dd></div>
+          <div><dt>"Value not in list" on a loader</dt><dd>That file is not in the right models folder, or it has a different name than the workflow expects. Pick yours from the dropdown.</dd></div>
+          <div><dt>"CUDA out of memory" / "Allocation on device"</dt><dd>The card ran out of VRAM. Work down the list on the left.</dd></div>
+          <div><dt>Dies after the last step finished</dt><dd>Usually the VAE running out while unpacking. Lower the resolution.</dd></div>
+          <div><dt>The whole PC crawls or freezes</dt><dd>RAM is full and Windows is using the disk as memory. Close other programs, or move to smaller files.</dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <h3 class="sub-h">The other words in this corner</h3>
+    <div class="terms three-col">
+      <div class="term plain"><h4>CUDA / PyTorch <span class="role">The plumbing</span></h4><p>PyTorch is the math engine ComfyUI is built on. CUDA is NVIDIA's layer that lets PyTorch use the graphics card. Both come bundled with ComfyUI and you never touch them. You only meet them in messages: "CUDA out of memory" means the card is full, and a tag like <code>cu130</code> in the startup log is just the CUDA version PyTorch was built for.</p></div>
+      <div class="term plain"><h4>Custom node <span class="role">An add-on</span></h4><p>Every box on the canvas is a node. Custom nodes are boxes written by other people, installed through ComfyUI Manager. <b>Qwen Image 2.1 itself needs none</b>: its nodes are built into ComfyUI. You only need a pack when a workflow you downloaded uses one. Each pack is code running on your PC, so stick to well-known ones.</p></div>
+      <div class="term plain"><h4>rgthree <span class="role">A popular pack</span></h4><p>A set of convenience nodes that shows up in a lot of shared workflows. The two you will meet most: a LoRA loader that stacks several LoRAs in one box, and switches that turn whole groups of a workflow on and off.</p></div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="sec" id="first-run">
+    <div class="sec-head"><span class="num">7</span><h2>First run</h2><span class="tag">A known-good starting point</span></div>
+    <p class="lead">Get one plain picture working with the official setup before you touch anything clever.</p>
+
+    <div class="cols">
+      <div class="box">
+        <h4>The recipe</h4>
+        <ol class="steps">
+          <li><b>Update ComfyUI.</b> Support for 2.1 is recent, and older builds cannot open the templates.</li>
+          <li><b>Open the built-in template.</b> Workflow menu, Browse Templates, search for Qwen Image 2.1, pick text to image.</li>
+          <li><b>Get the files.</b> ComfyUI lists what is missing and where it goes. It is the set from section 4.</li>
+          <li><b>Leave the defaults.</b> 1 megapixel, <code>25</code> steps, CFG <code>1</code>, euler, simple.</li>
+          <li><b>Run it.</b> The first run is the slowest, because every file has to come off the disk.</li>
+          <li><b>Then try an edit.</b> Open the image edit template. It uses the same three files.</li>
+        </ol>
+      </div>
+      <div class="box">
+        <h4>The prompt</h4>
+        <p><b>Making a picture.</b> Long and specific beats short and vague: subject, setting, lighting, camera, style. For words inside the picture, put the exact text in quotes.</p>
+        <p><b>Editing.</b> Say what changes and what stays, and name the pictures: "Keep the character and pose in <code>&lt;image1&gt;</code> unchanged, put the shirt from <code>&lt;image2&gt;</code> on the character."</p>
+        <p><b>Transparent background.</b> Wrap your description in this exact sentence, then save as PNG:</p>
+        <p style="font:12.5px/1.6 'Consolas',monospace;color:var(--text);background:var(--bg-input);border:1px solid var(--border);border-radius:7px;padding:10px 12px">This is an RGBA format image with transparency. [your description]. The image has an alpha channel and a transparent background.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <div class="src">Checked against: <a href="https://docs.comfy.org/tutorials/image/qwen/qwen-image-2-1">ComfyUI Qwen Image 2.1 docs</a>, <a href="https://huggingface.co/Comfy-Org/Qwen-Image-2.1">Comfy-Org/Qwen-Image-2.1 file list</a>, <a href="https://huggingface.co/Qwen/Qwen-Image-2.1">Qwen Image 2.1 model card</a>, ComfyUI's built-in nodes and templates. October 2026.</div>
+    <div>NimbleCloud13 &middot; Qwen Image 2.1 Field Guide &middot; <a href="https://github.com/nimblecloud13/ComfyUI-MiniMax-H3-Guide">more guides</a></div>
+  </div>
+</main>
+
+<script>
+(function(){
+  if(!('IntersectionObserver' in window)) return;
+  var links=[].slice.call(document.querySelectorAll('.tab-btn')), map={};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)]=a; });
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting) return;
+      links.forEach(function(l){ l.classList.remove('active'); });
+      if(map[e.target.id]) map[e.target.id].classList.add('active');
+    });
+  },{rootMargin:'-18% 0px -72% 0px'});
+  [].forEach.call(document.querySelectorAll('section[id]'),function(s){ io.observe(s); });
+})();
+</script>
+</body>
+</html>
